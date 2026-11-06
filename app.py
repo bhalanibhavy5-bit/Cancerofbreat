@@ -1,63 +1,49 @@
+%%writefile app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 
-st.set_page_config(page_title="Breast Cancer Predictor", layout="wide")
+st.set_page_config(page_title="Breast Cancer Predictor (PCA)", layout="wide")
 
-st.title("🩺 Breast Cancer Diagnosis Prediction App")
+st.title("🩺 Breast Cancer Diagnosis Prediction App (PCA Inputs)")
 st.write("""
 This app uses a Support Vector Machine (SVC) classifier trained on Principal Components
 to predict whether a breast mass is **Malignant (M)** or **Benign (B)**.
 """)
 
-# Load saved models and preprocessing pipelines
+# Load saved SVC model
 @st.cache_resource
-def load_assets():
-    scaler = joblib.load('scaler.sav')
-    pca = joblib.load('pca_transformer.sav')
+def load_model():
     model = joblib.load('svc_model.sav')
-    return scaler, pca, model
+    return model
 
 try:
-    scaler, pca, model = load_assets()
+    model = load_model()
 except Exception as e:
-    st.error(f"Error loading models: {e}. Please make sure you have executed the previous cells to save the models.")
+    st.error(f"Error loading models: {e}. Please make sure you have 'svc_model.sav' in the directory.")
     st.stop()
 
-# Feature names matching the original dataset
-feature_names = [
-    'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean',
-    'smoothness_mean', 'compactness_mean', 'concavity_mean',
-    'concave points_mean', 'symmetry_mean', 'fractal_dimension_mean',
-    'radius_se', 'texture_se', 'perimeter_se', 'area_se', 'smoothness_se',
-    'compactness_se', 'concavity_se', 'concave points_se', 'symmetry_se',
-    'fractal_dimension_se', 'radius_worst', 'texture_worst',
-    'perimeter_worst', 'area_worst', 'smoothness_worst',
-    'compactness_worst', 'concavity_worst', 'concave points_worst',
-    'symmetry_worst', 'fractal_dimension_worst'
-]
+# Define the 17 principal components
+pca_features = [f'PC{i+1}' for i in range(17)]
 
-st.sidebar.header("🔬 Input Patient Clinical Metrics")
+st.sidebar.header("🔬 Input Principal Component Values")
+st.sidebar.write("Please input the values for the 17 Principal Components:")
 
-# Group inputs dynamically into columns for a better UI layout
+# Group inputs dynamically into 3 columns for a clean UI layout
 input_data = {}
 cols = st.columns(3)
-for idx, col in enumerate(feature_names):
+for idx, col in enumerate(pca_features):
     col_target = cols[idx % 3]
-    val = col_target.number_input(f"{col.replace('_', ' ').title()}", value=0.0, format="%.4f")
+    val = col_target.number_input(f"{col}", value=0.0, format="%.4f")
     input_data[col] = val
 
 if st.button("Run Diagnostic Prediction", type="primary"):
-    # Convert input to DataFrame
-    input_df = pd.DataFrame([input_data])
+    # Convert inputs directly to a numpy array matching the 17 components expected by the SVC model
+    input_features = np.array([[input_data[pc] for pc in pca_features]])
 
-    # Preprocess inputs using saved Pipeline steps
-    input_scaled = scaler.transform(input_df)
-    input_pca = pca.transform(input_scaled)
-
-    # Predict
-    prediction = model.predict(input_pca)[0]
+    # Predict directly using the loaded classifier
+    prediction = model.predict(input_features)[0]
 
     st.subheader("Prediction Results")
     if prediction == 1:
